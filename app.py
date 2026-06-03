@@ -76,9 +76,7 @@ def load_models():
                     "normalize": config["normalize"],
                     "type": config["type"]
                 }
-            else:
-                pass
-        except Exception as e:
+        except Exception:
             pass
     
     return models
@@ -93,8 +91,6 @@ def preprocess_image(image, target_size, normalize_type):
     
     if normalize_type == "rescale":
         img_array = img_array / 255.0
-    elif normalize_type == "none":
-        pass
     
     img_array = np.expand_dims(img_array, axis=0)
     return img_array.astype(np.float32)
@@ -113,7 +109,6 @@ def predict_all_models(models, original_image):
     results = {}
     for name, model_info in models.items():
         try:
-            # Предобработка с правильным размером для каждой модели
             img_array = preprocess_image(
                 original_image,
                 target_size=model_info["size"],
@@ -121,8 +116,7 @@ def predict_all_models(models, original_image):
             )
             probs = predict_single(model_info, img_array)
             results[name] = probs
-        except Exception as e:
-            st.error(f"Ошибка при предсказании {name}: {e}")
+        except Exception:
             results[name] = None
     return results
 
@@ -181,7 +175,6 @@ def display_single_model(image, model_info, model_name, top_n=3):
     with col2:
         st.subheader(f"📊 Результаты: {model_name}")
         
-        # Предобработка и предсказание
         img_array = preprocess_image(
             image,
             target_size=model_info["size"],
@@ -204,7 +197,6 @@ def display_single_model(image, model_info, model_name, top_n=3):
             st.success(f"🎯 **Лучшее предсказание: {best_class}**")
             st.info(f"📈 Уверенность: {best_conf:.2%}")
             
-            # График
             st.subheader("📊 График уверенности")
             fig, ax = plt.subplots(figsize=(10, 4))
             top_classes = [class_names[i] for i in top_indices]
@@ -220,13 +212,11 @@ def display_single_model(image, model_info, model_name, top_n=3):
             
             st.pyplot(fig)
             
-            # Таблица
             st.subheader("📋 Детальная таблица")
             df = pd.DataFrame([(class_names[i], probs[i]) for i in top_indices], 
                              columns=["Класс", "Уверенность"])
             df["Уверенность (%)"] = df["Уверенность"].apply(lambda x: f"{x:.2%}")
             st.dataframe(df, use_container_width=True, hide_index=True)
-
 
 # ============================================
 # ОСНОВНАЯ ЧАСТЬ
@@ -240,8 +230,8 @@ def main():
         st.error("❌ Не удалось загрузить ни одну модель.")
         st.info("""
         **Требуемые файлы:**
-        - model_a_final.keras
-        - model_b_final.keras
+        - model_a_mobilenet_se.keras
+        - model_b_mobilenet_cbam.keras
         - concat_ensemble.keras
         - model_after_finetuning.keras
         - pretrained_model.keras
@@ -253,11 +243,10 @@ def main():
     
     mode = st.sidebar.radio(
         "Режим работы:",
-        ["Сравнение всех моделей", "Выбор конкретной модели"]
+        ["Выбор конкретной модели", "Сравнение всех моделей"]
     )
     
-    top_n = st.sidebar.slider("Количество отображаемых классов (Top-N):", 1, 7, 3)
-
+    top_n = st.sidebar.slider("Количество отображаемых классов (Top-N):", 1, 7, 7)
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("🚗 Доступные классы")
@@ -266,32 +255,55 @@ def main():
     for i, name in enumerate(class_names, 1):
         st.sidebar.write(f"{emojis.get(name, '📷')} {i}. {name}")
     
-    # Основной контент
-    uploaded_file = st.file_uploader(
-        "📁 Загрузите изображение...",
-        type=['jpg', 'jpeg', 'png', 'bmp', 'webp']
-    )
-    
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
+    # ============================================
+    # РЕЖИМ "ВЫБОР КОНКРЕТНОЙ МОДЕЛИ"
+    # ============================================
+    if mode == "Выбор конкретной модели":
+        st.subheader("📌 Шаг 1: Выберите модель")
         
-        if st.button("🔍 Распознать", type="primary"):
-            with st.spinner("Анализ изображения..."):
-                
-                if mode == "Сравнение всех моделей":
+        model_names = list(models.keys())
+        selected_model = st.selectbox("Выберите модель для распознавания:", model_names)
+        
+        if selected_model:
+            model_info = models[selected_model]
+            st.info(f"**Размер входного изображения:** {model_info['size'][0]}x{model_info['size'][1]}")
+        
+        st.markdown("---")
+        st.subheader("📁 Шаг 2: Загрузите изображение")
+        
+        uploaded_file = st.file_uploader(
+            "Загрузите изображение...",
+            type=['jpg', 'jpeg', 'png', 'bmp', 'webp'],
+            key="single_uploader"
+        )
+        
+        if uploaded_file is not None and selected_model:
+            image = Image.open(uploaded_file)
+            
+            if st.button("🔍 Распознать", type="primary"):
+                with st.spinner("Анализ изображения..."):
+                    model_info = models[selected_model]
+                    display_single_model(image, model_info, selected_model, top_n)
+    
+    # ============================================
+    # РЕЖИМ "СРАВНЕНИЕ ВСЕХ МОДЕЛЕЙ"
+    # ============================================
+    else:
+        st.subheader("📁 Загрузите изображение для сравнения")
+        
+        uploaded_file = st.file_uploader(
+            "Загрузите изображение...",
+            type=['jpg', 'jpeg', 'png', 'bmp', 'webp'],
+            key="compare_uploader"
+        )
+        
+        if uploaded_file is not None:
+            image = Image.open(uploaded_file)
+            
+            if st.button("🔍 Сравнить все модели", type="primary"):
+                with st.spinner("Анализ изображения всеми моделями..."):
                     all_results = predict_all_models(models, image)
                     display_comparison(image, all_results, top_n)
-                    
-                else:  # Выбор конкретной модели
-                    model_names = list(models.keys())
-                    selected_model = st.selectbox("Выберите модель:", model_names)
-                    
-                    if selected_model:
-                        model_info = models[selected_model]
-                        display_single_model(image, model_info, selected_model, top_n)
-    
-    else:
-        st.info("👈 Загрузите изображение для начала работы")
 
 if __name__ == "__main__":
     main()
