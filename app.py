@@ -52,7 +52,7 @@ def load_models():
             "normalize": "none",
             "type": "single"
         },
-        "Своя модель (64x64)": {
+        "Своя модель": {
             "path": "model_after_finetuning.keras",
             "size": (64, 64),
             "normalize": "rescale",
@@ -76,11 +76,10 @@ def load_models():
                     "normalize": config["normalize"],
                     "type": config["type"]
                 }
-                st.success(f"✅ {name} загружен")
             else:
-                st.warning(f"⚠️ {name} не найден: {config['path']}")
+                pass
         except Exception as e:
-            st.error(f"❌ Ошибка загрузки {name}: {str(e)[:80]}...")
+            pass
     
     return models
 
