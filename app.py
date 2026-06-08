@@ -264,10 +264,6 @@ def main():
         model_names = list(models.keys())
         selected_model = st.selectbox("Выберите модель для распознавания:", model_names)
         
-        if selected_model:
-            model_info = models[selected_model]
-            st.info(f"**Размер входного изображения:** {model_info['size'][0]}x{model_info['size'][1]}")
-        
         st.markdown("---")
         st.subheader("📁 Шаг 2: Загрузите изображение")
         
